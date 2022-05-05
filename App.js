@@ -54,54 +54,74 @@ const data = [
 // Submit a revised version of this function below, making any changes
 // you believe improve the code while satisfying the requirements above.
 //----------------------
-function doProcesstrades(ddata) {
-  var a = {},
-    tradesret = [],
-    count = null;
-  for (let i = 0; i < ddata.length; i++) {
-    var b = ddata[i];
-    count = !count ? 1 : count + 1;
 
-    // 1) add up prices
-    if (!a["total" + b.currency]) {
-      a["total" + b.currency] = b.price * b.quantity;
-    } else {
-      a["total" + b.currency] = a["total" + b.currency] + b.price * b.quantity;
-    }
-
-    // 2) collect unique symbols
-    if (!a.symbols) a.symbols = [];
-    if (a.symbols.indexOf(b.symbol) < 0) {
-      a.symbols = a.symbols.concat([b.symbol]);
-    }
-
-    // 3) handle missing names
-    if (
-      b.companyName === "" ||
-      b.companyName === null ||
-      b.companyName === undefined
-    ) {
-      b.companyName = b["symbol"] || "???????";
-    }
-
-    // 4) add trade to returned array
-    tradesret = tradesret.concat(b);
+function isValid(trade) {
+  if (trade.id == "00000000-0000-0000-0000-000000000000") {
+    return false;
   }
-
-  a.tradeCount = count;
-  a.trades = tradesret;
-
-  // 5) remove bad trades - be sure to fix count if neeeded
-  var removed = 0;
-  for (let i = 0; i < a.trades.length; i++) {
-    if (a.trades[i].id == "00000000-0000-0000-0000-000000000000") {
-      console.error(`Bad trade removed ${a.trades[i]}`);
-      removed++;
-      let badTradeSym = a.trades[i].symbol;
-      a.symbols.splice(a.symbols.indexOf(badTradeSym), 1);
-      a.trades.splice(i, 1);
-    }
-    a.tradeCount = a.tradeCount - removed;
-  }
-  return a;
+  return true;
 }
+
+function doProcessTrades(data) {
+  var tradeSummary = {
+    count: 0,
+    deduplicatedSymbols: [],
+    costPerCurrency: new Map(),
+    returnedTrades: [],
+  };
+
+  let count = 0;
+  let symbols = new Map();
+  let costPerCurrency = new Map();
+  let returnedTrades = [];
+
+  for (let i = 0; i < data.length; i++) {
+    let trade = data[i];
+    let symbol = trade.symbol;
+    let price = trade.price;
+    let companyName = trade.companyName;
+    let currency = trade.currency;
+
+    if (isValid(trade)) {
+      // 1) add to valid trade count
+      count++;
+      // 2) collect unique symbols
+      if (!symbols.has(symbol)) {
+        symbols.set(symbol);
+      }
+      // 3) aggregate total cost of the valid trades per-currency
+      if (!costPerCurrency.has(currency)) {
+        costPerCurrency.set(currency, price);
+      } else {
+        let totalPrice = costPerCurrency.get(currency) + price;
+        costPerCurrency.set(currency, totalPrice);
+      }
+      console.log("costPerCurrancy ", costPerCurrency);
+      // 3) handle missing names
+      if (typeof companyName == "undefined") {
+        trade.companyName = symbol;
+      }
+      // 4) add trade to returned array
+      returnedTrades.push(trade);
+      // 5) remove bad trades - do not include bad trade in output and log bad trade that is being removed.
+    } else {
+      console.log("Bad trade removed: ", trade);
+    }
+  }
+
+  tradeSummary.count = count;
+  tradeSummary.deduplicatedSymbols = Array.from(symbols.keys());
+  tradeSummary.costPerCurrency = costPerCurrency;
+  tradeSummary.returnedTrades = returnedTrades;
+  return tradeSummary;
+}
+
+// method to check if a trade is valid or not.
+// function isValid(trade) {
+//   if (trade.id == "00000000-0000-0000-0000-000000000000") {
+//     return false;
+//   }
+//   return true;
+// }
+
+console.log("Trade Summary: ", doProcessTrades(data));
